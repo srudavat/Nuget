@@ -1,0 +1,357 @@
+curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
+ 
+curl -LO https://storage.googleapis.com/kubernetes-release/release/v1.7.0/bin/linux/amd64/kubectl
+ 
+chmod +x ./kubectl
+ 
+sudo mv ./kubectl /usr/local/bin/kubectl
+
+
+Step 1: Whitelist the HELM URL
+	wget https://get.helm.sh/helm-v3.7.1-linux-amd64.tar.gz
+Step2: Use the below command to install HELM chart
+	wget https://get.helm.sh/helm-v3.7.1-linux-amd64.tar.gz
+	sudo tar -xvf helm-v3.7.1-linux-amd64.tar.gz
+	sudo mv linux-amd64/helm /usr/local/bin/helm
+sudo helm version
+
+
+ docker build -f ./<component>/Dockerfile -t testimage3 .
+
+
+Get root certificate from Jfrog as Base 64 cer file and rename it to crt file. Update Docker file copying this crt file to ca-certificates folder and run update ca-certificates
+
+
+
+<#
+.SYNOPSIS
+   This script is created to enable Task Scheduler after deployment.
+ 
+.DESCRIPTION
+   Deployment of Task Scheduler files are done after disbaling each task scheduler. After deployment we need to enble the tasks scheduler  
+
+.PARAMETER TaskSchedulerName
+This is the Name of all Task Schedulers to enable. 
+ 
+
+.EXAMPLE
+.\TaskScheduler_Enable.ps1 -TaskSchedulerName "<scheduler1>,<scheduler2>"
+
+#>
+    #Parameters
+    param (
+        [Parameter(Mandatory)]
+        [string]$TaskSchedulerName
+        
+    )
+
+    $TaskScheduler = $TaskSchedulerName.split(",")
+    foreach($p in $TaskScheduler)
+    {
+
+    Write-host "Enabling $p after deployment of the package"
+    Enable-ScheduledTask -taskname $p
+    }
+
+
+
+<#
+.SYNOPSIS
+   This script is generated for Polling Task Scheduler state and disable Task Scheduler for deployment.
+ 
+.DESCRIPTION
+   Deployment of Task Scheduler files are failing when the Task Scheduler is in "Running" State. So we are polling Task Scheduler status. If Task SCheduler is in "Running" State, then script waits till state changes to "Ready" State
+   and then disable Task Scheduler to get ready for deployment.    
+
+.PARAMETER TaskSchedulerName
+This is the Name of all Task Schedulers to deploy. 
+ 
+
+.EXAMPLE
+.\TaskScheduler_State.ps1 -TaskSchedulerName "<scheduler1>,<scheduler2>"
+
+#>
+    #Parameters
+    param (
+        [Parameter(Mandatory)]
+        [string]$TaskSchedulerName,
+        [string]$Waittime
+    )
+
+    $TaskScheduler = $TaskSchedulerName.split(",")
+    foreach($p in $TaskScheduler)
+    {
+    Write-Verbose "Starting the Stopwatch to calculate wait time"
+    $stopWatch = New-Object -TypeName System.Diagnostics.Stopwatch
+    $stopWatch.Start()
+    Write-Verbose "Started Stop-watch"
+    
+
+    DO{
+        try {           
+            $ScheduleTask = Get-ScheduledTask -TaskName $p -ErrorAction SilentlyContinue | Where-Object {$_.TaskName -like $p}
+            if($ScheduleTask) {
+                $ScheduleTaskState = ($ScheduleTask).State   
+                Write-host "Please wait till $p turns to 'Ready' State"                 
+                if ($stopWatch.Elapsed.Minutes -ge $Waittime) { #check for the timer
+
+                throw "$p is running for a long time. Deployment cannot happen now"
+
+                }elseif (($ScheduleTask).State -eq "Ready") { 
+                Write-host "Disabling $p to deploy the package"
+                Disable-ScheduledTask -taskname $p -ErrorAction SilentlyContinue
+                }
+                Start-Sleep -s 10
+            }
+            else{
+            Write-Host "$p do not exist. Please check the name of task scheduler or deploy task scheduler to disable it"
+            }
+        } 
+        catch {
+            $ErrorMessage = $_.Exception.Message
+            throw "Failed to Retrieve state of the task $p. The error message was $ErrorMessage"
+        } 
+        
+    }While (($ScheduleTask).State -eq "Running")
+  
+    }
+
+
+
+##########################################################################################################
+<#
+.SYNOPSIS
+   Attempt to create a deployment group dynamically using Rest API Calls.
+
+.DESCRIPTION
+   When ran this function will create a deployment group with given name by making a Rest API call.
+
+.EXAMPLE
+  Create-DeploymentGroup
+
+#>
+##########################################################################################################
+        
+
+#Function CreateDeploymentGroup
+#{
+    
+param (
+        #Organization URL
+        [string]$BaseUrl = "https://<ADOURL>/", 
+
+        [string]$PersonalAccessToken,
+        [string]$ProjectName,
+        [string]$GroupName
+)
+
+    #Enter PAT Token
+    $PersonalAccessToken = $PersonalAccessToken
+
+    # Test if the PAT key is valid and not null
+    if($PersonalAccessToken){   
+        #Project  Name
+        $ProjectName = $ProjectName
+        if($ProjectName){
+            #Give Deployemnet Group Name that should be created
+            $GroupName = $GroupName
+            if($GroupName){
+                $Body= @{
+                    "name"= $GroupName;
+                    "description" = "This deployment group is created to demnostrate the client usage"
+                }| ConvertTo-Json
+
+                try{
+                    #Create the Rest API Url
+                    $url= $BaseUrl + $ProjectName + "/_apis/distributedtask/deploymentgroups?api-version=5.0-preview.1" 
+
+                    # Invoke the service
+                    Invoke-RestMethod -Method Post -Uri $url -Headers @{Authorization = 'Basic ' + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$($personalAccessToken)")) } -Body $Body -ContentType "application/json" 
+
+                    #Write-Host $Group Creation Result
+                    Write-Host $GroupName "Deployment Group Created"
+                }
+                catch{
+                    #Handle the Exception in case of service call failures
+                    $exception = $_.Exception
+
+                    if ($exception.InnerException) 
+                    {
+                        $exceptionmessage = $exception.InnerException.Message
+                    }
+
+                    Write-Host “Deployment Group Creation Failed: Exception Message: $exceptionmessage”
+                }    
+            }else{
+            Write-Host "GroupName Cannot Be Null.Please Enter a Valid Name" 
+            }
+        }else{
+        Write-Host "ProjectName Cannot Be Null.Please Enter a Valid Name" 
+        }
+    }else{
+        Write-Host "PAT Token Cannot Be Null.Please Enter a Valid Value" 
+    }
+#}
+
+#Call Function
+#CreateDeploymentGroup
+
+
+######################SerivceNow CLuster deployment########################################
+
+#Import-Module 'C:\Program Files\Microsoft SDKs\Service Fabric\Tools\PSModule\ServiceFabricSDK\ServiceFabricSDK.psm1'
+
+#Connect using certificate thumbprint
+#Connect-ServiceFabricCluster -ConnectionEndpoint "<endpoint>:19000" -KeepAliveIntervalInSec 1200 -X509Credential -ServerCertThumbprint <thumprint> -FindType FindByThumbprint -FindValue <thumbprint> -StoreLocation CurrentUser -StoreName My
+
+#Copy SF app
+Copy-ServiceFabricApplicationPackage -ApplicationPackagePath "<path>" -ImageStoreConnectionString "fabric:ImageStore" -Verbose
+
+#Register
+Register-ServiceFabricApplicationType -ApplicationPathInImageStore "<appname>"
+
+#Create SF APP Instance
+New-ServiceFabricApplication -ApplicationName "fabric:/<appname>" -ApplicationTypeName "<apptype>" -ApplicationTypeVersion "$(SFAppTypeVersion)"
+
+
+#------------------------ Remove already deployed  app from Cluster
+#Removes a Service Fabric application package from the image store
+Remove-ServiceFabricApplicationPackage -ImageStoreConnectionString "fabric:ImageStore" -ApplicationPackagePathInImageStore "<appname>"
+
+
+#------------------- Microservices Apps ------------------------------
+#Copy SF app pkg
+Copy-ServiceFabricApplicationPackage -ApplicationPackagePath "<path>" -ImageStoreConnectionString "fabric:ImageStore"
+
+#Register
+Register-ServiceFabricApplicationType -ApplicationPathInImageStore "<appname>"
+
+#Create SF APP Instance
+New-ServiceFabricApplication -ApplicationName "fabric:/<appname>" -ApplicationTypeName "<apptype>" -ApplicationTypeVersion "$(SFAppTypeVersion)"
+
+
+#Removes a Service Fabric application package from the image store
+Remove-ServiceFabricApplicationPackage -ImageStoreConnectionString "fabric:ImageStore" -ApplicationPackagePathInImageStore "<appname>"
+
+
+
+$var = "$(Build.BuildNumber)"
+
+$version = $var.Split('_')[1]
+
+$splitNumber = $version.Split(".")
+
+
+$majorNumber = $splitNumber[0]
+$minorNumber = $splitNumber[1]
+$myBuildNumber = $splitNumber[2]
+$revisionNumber = $splitNumber[3]
+
+$Appversion = $majorNumber + "." + $minorNumber + "." + $myBuildNumber+ "." + $revisionNumber 
+
+
+
+foreach ($file in $SerAppManifest)
+{
+    (Get-Content $file.PSPath) |
+    Foreach-Object { $_ -replace "#{SFAppTypeVersion}#", "$Appversion" } |
+    Set-Content $file.PSPath
+}
+
+
+npm config set strict-ssl false
+npm config set proxy http://11.111.1.1:8080
+npm config set https-proxy http://11.111.1.1:8080
+npm config set no_proxy artifactory.com
+
+
+[bool]$prestatus=$true
+try
+{
+ $message =""
+   
+    #Check IIS Installed or not
+    if ((Get-WindowsFeature Web-Server).InstallState -eq "Installed") {
+       
+    } 
+    else {
+     $prestatus=$false;
+     $message += "IIS is not installed"
+      
+    }
+   #Check drive or folder path and if fails then $prestatus to $false...
+   $targetDir = 'C:\'
+    if(!(Test-Path -Path $targetDir )){
+         $prestatus=$false;
+         $message += ",Drive not present "
+        } 
+
+    #Check other and if fails then $prestatus to $false...
+
+  if(!$prestatus)
+    {
+              throw $error[0].Exception;
+    }
+    else
+    {
+     $message +"Validation check passed"
+    }
+}
+catch
+{
+  Write-Host “##vso[task.logissue type=error;] Exception Message: $message”
+  [Environment]::Exit(1)
+}
+
+
+Get-Module -ListAvailable Az*
+
+Install-Module -Name Az -AllowClobber -Scope AllUsers
+
+
+
+
+	1. TenantID : 
+	2. Subscription Name: 
+	3. Subscription ID : 
+	4. ASE Name : 
+	5. ASE IP : 
+        6. Resource Group Name: 
+
+
+One possible reason for not being able to clone the repository from Visual Studio 2019 (or form 2017), is if you are behind a proxy, and then the clone operation would fail. In order to verify if you are behind a proxy follow the steps below:
+ 
+	1. Open Internet Explorer.
+	2. Click the “Tools” drop-down arrow in the upper-right portion of the browser window. Select “Internet Options.”
+	3. Click the “Connections” tab in the Internet Options window. Click the “LAN Settings” button. If there is a check mark in the box next to the “Us a proxy server for your LAN” option, then your PC accesses the Web through a proxy server. If there is no check mark in the box, your computer does not use a proxy server.
+ 
+If that is the case, you would have to configure your git global config properly, since the Visual Studio is using it when you comes to work with repository.
+ 
+To check if there is already set a proxy in your git execute :
+ 
+	1. git config --global --get http.proxy
+ 
+If there is no proxy being set in git, but you are behind a proxy server , get the details from the settings, and execute the following one:
+. 
+	1. git config --global http.proxy http://yourProxyServer:port or (IP:port instead)
+ 
+Once it is done, execute the –get command again in order to verify that it is set correctly for you.
+
+
+DECLARE @sql NVARCHAR(MAX) = N'';
+
+SELECT @sql += N'
+  DROP DATABASE ' + QUOTENAME(name)
+  + N';' 
+FROM sys.databases
+WHERE name NOT IN (N'master',N'tempdb',N'model',N'msdb');
+
+PRINT @sql;
+-- EXEC master.sys.sp_executesql @sql; 
+
+
+
+
+
+
+
